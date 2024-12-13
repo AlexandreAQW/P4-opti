@@ -1,0 +1,86 @@
+import pandas as pd
+import numpy as np
+
+def read_transportation_data(file_path):
+    """Read transportation problem data from an Excel file."""
+    cost_matrix = pd.read_excel(file_path, sheet_name="Cost Matrix", header=None)
+    supply = pd.read_excel(file_path, sheet_name="Supply", header=None)
+    demand = pd.read_excel(file_path, sheet_name="Demand", header=None)
+
+    cost = cost_matrix.iloc[1:, 1:].values.astype(float)
+    supply = supply.iloc[0, 1:-1].values.astype(float)
+    demand = demand.iloc[0, 1:-1].values.astype(float)
+
+    return cost, supply, demand
+
+def northwest_corner_method(supply, demand):
+    """Find the initial feasible solution using the Northwest Corner Method."""
+    supply = supply.copy()
+    demand = demand.copy()
+    rows, cols = len(supply), len(demand)
+    allocation = np.zeros((rows, cols))
+
+    i = j = 0
+    while i < rows and j < cols:
+        allocated = min(supply[i], demand[j])
+        allocation[i, j] = allocated
+        supply[i] -= allocated
+        demand[j] -= allocated
+
+        if supply[i] == 0:
+            i += 1
+        elif demand[j] == 0:
+            j += 1
+
+    return allocation
+
+def transportation_simplex(cost, supply, demand):
+    """Solve the transportation problem using the Transportation Simplex Algorithm."""
+    allocation = northwest_corner_method(supply, demand)
+
+    print("Initial Feasible Solution (Northwest Corner Method):")
+    print(allocation)
+
+    while True:
+        # Compute the reduced costs
+        u = np.full(len(supply), None)
+        v = np.full(len(demand), None)
+        u[0] = 0  # Start with the first supply row
+
+        # Iteratively calculate u and v for basic variables
+        for _ in range(len(supply) + len(demand)):
+            for i in range(len(supply)):
+                for j in range(len(demand)):
+                    if allocation[i, j] > 0:  # Only consider basic variables
+                        if u[i] is not None and v[j] is None:
+                            v[j] = cost[i, j] - u[i]
+                        elif v[j] is not None and u[i] is None:
+                            u[i] = cost[i, j] - v[j]
+
+        # Compute reduced costs for all non-basic variables
+        delta = np.full_like(cost, np.inf, dtype=float)
+        for i in range(len(supply)):
+            for j in range(len(demand)):
+                if allocation[i, j] == 0:  # Non-basic variables
+                    if u[i] is not None and v[j] is not None:  # Ensure no None values
+                        delta[i, j] = cost[i, j] - (u[i] + v[j])
+
+        # Check for optimality
+        if np.all(delta >= 0):  # If all reduced costs are non-negative, optimal
+            break
+
+        # Find the entering variable
+        min_delta_index = np.unravel_index(np.argmin(delta), delta.shape)
+
+        # Update the solution (pivoting process needed)
+        # TODO: Implement full pivoting for cycling (or implement MODI method here)
+
+    return allocation
+
+# Example usage
+file_path = "transportation_problem_template.xlsx"
+cost, supply, demand = read_transportation_data(file_path)
+allocation = transportation_simplex(cost, supply, demand)
+
+print("Final Allocation:")
+print(allocation)
