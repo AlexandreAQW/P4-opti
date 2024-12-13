@@ -34,6 +34,53 @@ def northwest_corner_method(supply, demand):
 
     return allocation
 
+def find_loop(allocation, start):
+    """Find the closed-loop path for pivoting in the simplex method."""
+    rows, cols = allocation.shape
+    visited = set()
+    path = []
+
+    def dfs(node, direction):
+        if node in visited:
+            if node == start and len(path) > 3:
+                return True
+            return False
+
+        visited.add(node)
+        path.append(node)
+        r, c = node
+
+        if direction == "row":
+            for j in range(cols):
+                if j != c and allocation[r, j] > 0:
+                    if dfs((r, j), "col"):
+                        return True
+        elif direction == "col":
+            for i in range(rows):
+                if i != r and allocation[i, c] > 0:
+                    if dfs((i, c), "row"):
+                        return True
+
+        visited.remove(node)
+        path.pop()
+        return False
+
+    dfs(start, "row")
+    return path
+
+def update_allocation(allocation, path):
+    """Update the allocation based on the closed-loop path."""
+    values = [allocation[r, c] for r, c in path[1::2]]
+    theta = min(values)
+
+    for idx, (r, c) in enumerate(path):
+        if idx % 2 == 0:
+            allocation[r, c] += theta
+        else:
+            allocation[r, c] -= theta
+
+    return allocation
+
 def transportation_simplex(cost, supply, demand):
     """Solve the transportation problem using the Transportation Simplex Algorithm."""
     allocation = northwest_corner_method(supply, demand)
@@ -72,8 +119,11 @@ def transportation_simplex(cost, supply, demand):
         # Find the entering variable
         min_delta_index = np.unravel_index(np.argmin(delta), delta.shape)
 
-        # Update the solution (pivoting process needed)
-        # TODO: Implement full pivoting for cycling (or implement MODI method here)
+        # Find the closed loop for pivoting
+        path = find_loop(allocation, min_delta_index)
+
+        # Update the allocation based on the loop
+        allocation = update_allocation(allocation, path)
 
     return allocation
 
